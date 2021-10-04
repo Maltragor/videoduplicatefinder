@@ -76,7 +76,23 @@ namespace VDF.Core.Utils {
 				diff += Math.Abs(img1[i] - img2[i]);
 				counter++;
 			}
+
 			return (float)diff / counter / counter;
+			// Why "/ counter / counter"?
+			// The original version without skipping black/white is:
+			//   (float)diff / img1.Length / 256;   //  Shouldn't it be 255 by the way - see comment further down?
+			//   img1.Length <-> counter  | OK , the number of elements added to diff
+			//   255 <-> counter          | ???, 255 is the byte range -> Math.Abs(img1[i] - img2[i])
+			//                                   and diff is divided by that range to nomalize the result -> [0..1]
+			//                                   But dividing by counter a second time seems strange/special to me.
+			//                                   If nearely all pixels are within the range, counter will be near 256 so it does not have a too great impact.
+			//                                   Dividing a second time by counter instead of 255, the fewer pixels that meet the criterion, the more the difference is weighted. 
+			//									 This may be intended, I dont know.
+			// If the behavior is really so intentional, I would suggest noting this in a comment. (The function can even return values larger 1)
+			//
+			// Probably it would also make sense to introduce a counter limit below which the function also returns NaN 
+			// (i.e. the comparison is considered to have failed). Because whether only <0>, 1, 2,... or 20-40(?) pixels of 256 can 
+			// be compared - the significance of such a comparison is not very great. 
 		}
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static unsafe float PercentageDifference(byte[] img1, byte[] img2) {
@@ -109,6 +125,11 @@ namespace VDF.Core.Utils {
 					diff += Math.Abs(img1[i] - img2[i]);
 			}
 			return (float)diff / img1.Length / 256;
+			// Why 256?
+			// img1[i] is a byte, so range is [0..255] This are 256 values but that doesn't matter here.
+			// The maximum difference is 255 when one pixel is 0 and the other is 255.
+			// The "/ 255" should normalise the result, so 0->0 and 255->1.
+			// In Issue #109 the 255 is also suggested to fix the "/ 512" bug.
 		}
 
 		readonly static byte[] flipp_shuf256 = {

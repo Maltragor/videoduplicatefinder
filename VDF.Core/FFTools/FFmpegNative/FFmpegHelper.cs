@@ -54,6 +54,8 @@ namespace VDF.Core.FFTools.FFmpegNative {
 
 		public static bool DoFFmpegLibraryFilesExist {
 			get {
+				// See compiler warnings: ffmpegLibraryFound is always false because there is no assignement
+				// Should the variable be set in this function when ture is returnded?
 				if (ffmpegLibraryFound) return true;
 				try {
 
@@ -74,6 +76,10 @@ namespace VDF.Core.FFTools.FFmpegNative {
 
 					//Try fast lookup first, credits: @Maltragor
 					try {
+						ffmpeg.RootPath = "";
+						// ^ This was missing. ffmpeg.GetOrLoadLibrary() only do a automatic search if RootPath is set to "".
+						// Without this RootPath keeps its default value like ".../0x90d_videoduplicatefinder/VDF.GUI/bin/Debug/net6.0/linux-x64/"
+						// and the following GetOrLoadLibrary will always fail.
 						foreach (KeyValuePair<string, int> item in ffmpeg.LibraryVersionMap)
 							ffmpeg.GetOrLoadLibrary(item.Key);
 						return true;
@@ -82,6 +88,9 @@ namespace VDF.Core.FFTools.FFmpegNative {
 
 					if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) {
 						string firstLibrary = $"lib{ffmpeg.LibraryVersionMap.Keys.First()}.so.{ffmpeg.LibraryVersionMap.Values.First()}";
+						// There seem to be different lib directories depending on the distribution.
+						// https://opensource.com/article/20/6/linux-libraries
+						// -> "/usr/lib/...", "/usr/lib64", "/usr/lib32", ...
 						List<string> filesList = Directory.EnumerateFiles("/usr/lib/", firstLibrary, new EnumerationOptions {
 							IgnoreInaccessible = true,
 							RecurseSubdirectories = true

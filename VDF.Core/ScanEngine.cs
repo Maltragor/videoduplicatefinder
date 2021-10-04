@@ -247,8 +247,11 @@ namespace VDF.Core {
 								GrayBytesUtils.PercentageDifferenceWithoutSpecificPixels(grayBytes[0]!, compItem.grayBytes[0]!, ignoreBlackPixels, ignoreWhitePixels) :
 								GrayBytesUtils.PercentageDifference(grayBytes[0]!, compItem.grayBytes[0]!);
 				return difference <= differenceLimit;
+				// PercentageDifferenceWithoutSpecificPixels can return NaN if to many pixels are ignored
+				// (NaN <= differenceLimit) is always false -> no Duplicate
 			}
-
+#if false
+// (a) PercentageDifferenceWithoutSpecificPixels == NaN -> always no duplicate
 			float diff, diffSum = 0;
 			for (int j = 0; j < positionList.Count; j++) {
 				diff = ignoreBlackPixels || ignoreWhitePixels ?
@@ -258,7 +261,8 @@ namespace VDF.Core {
 							GrayBytesUtils.PercentageDifference(
 								grayBytes[entry.GetGrayBytesIndex(positionList[j])]!,
 								compItem.grayBytes[compItem.GetGrayBytesIndex(positionList[j])]!);
-				if (diff > differenceLimit) {
+				// Inverse logic to handle NaN as no Duplicate
+				if (!(diff <= differenceLimit)) {
 					difference = 1.0f;
 					return false;
 				}
@@ -266,6 +270,34 @@ namespace VDF.Core {
 			}
 			difference = diffSum / positionList.Count;
 			return true;
+#else
+// (b) PercentageDifferenceWithoutSpecificPixels == NaN is ignored if enough images remain comparable
+			float diff, diffSum = 0;
+			int duplicateCounter = 0;
+			difference = 1.0f;
+			for (int j = 0; j < positionList.Count; j++) {
+				diff = ignoreBlackPixels || ignoreWhitePixels ?
+							GrayBytesUtils.PercentageDifferenceWithoutSpecificPixels(
+								grayBytes[entry.GetGrayBytesIndex(positionList[j])]!,
+								compItem.grayBytes[compItem.GetGrayBytesIndex(positionList[j])]!, ignoreBlackPixels, ignoreWhitePixels) :
+							GrayBytesUtils.PercentageDifference(
+								grayBytes[entry.GetGrayBytesIndex(positionList[j])]!,
+								compItem.grayBytes[compItem.GetGrayBytesIndex(positionList[j])]!);
+	
+				if (diff <= differenceLimit) {
+					duplicateCounter++;
+					diffSum += diff;
+				}
+				else if (!float.IsNaN(diff))
+					return false;
+			}
+			//if (duplicateCounter >= 1) {		// At least one valid comparsion
+			if (duplicateCounter >= Math.Max(1, (int)(positionList.Count*0.43))) { // Relative to positionList.Count but at least one valid comparsion ([1..4] -> 1, [5..6] -> 2, [7..9] -> 3)
+				difference = diffSum / duplicateCounter;
+				return true;
+			}
+			return false;
+#endif
 		}
 
 		void ScanForDuplicates() {
